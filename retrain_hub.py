@@ -164,59 +164,31 @@ def create_image_lists(image_dir):
   if not tf.gfile.Exists(image_dir):
     tf.logging.error("Image directory '" + image_dir + "' not found.")
     return None
-  result = collections.OrderedDict()
-  sub_dirs = sorted(x[0] for x in tf.gfile.Walk(image_dir))
-  # The root directory comes first, so skip it.
-  is_root_dir = True
-  for sub_dir in sub_dirs:
-    if is_root_dir:
-      is_root_dir = False
-      continue
-    extensions = ['jpg', 'jpeg', 'JPG', 'JPEG']
-    training_files = []
-    validation_files = []
-    testing_files = []
-    dir_name = os.path.basename(sub_dir)
-    if dir_name == image_dir:
-      continue
-    tf.logging.info("Looking for images in '" + dir_name + "'")
-    for extension in extensions:
-      file_glob = os.path.join(image_dir, dir_name, 'train', '*.' + extension)
-      training_files.extend(tf.gfile.Glob(file_glob))
-      file_glob = os.path.join(image_dir, dir_name, 'validation', '*.' + extension)
-      validation_files.extend(tf.gfile.Glob(file_glob))
-      file_glob = os.path.join(image_dir, dir_name, 'test', '*.' + extension)
-      testing_files.extend(tf.gfile.Glob(file_glob))
+  extensions = ['jpg', 'jpeg', 'JPG', 'JPEG']
+  training_images = []
+  validation_images = []
+  testing_images = []
+  tf.logging.info("Looking for images in '" + image_dir + "'")
+  for extension in extensions:
+    file_glob = os.path.join(image_dir, 'training', '*.' + extension)
+    training_images.extend(tf.gfile.Glob(file_glob))
+    file_glob = os.path.join(image_dir, 'validation', '*.' + extension)
+    validation_images.extend(tf.gfile.Glob(file_glob))
+    file_glob = os.path.join(image_dir, 'testing', '*.' + extension)
+    testing_images.extend(tf.gfile.Glob(file_glob))
 
-    label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
-    training_images = []
-    validation_images = []
-    testing_images = []
-    for file_name in training_files:
-      base_name = os.path.basename(file_name)
-      training_images.append('training/' + base_name)
-    for file_name in validation_files:
-      base_name = os.path.basename(file_name)
-      validation_images.append('validation/' + base_name)
-    for file_name in testing_files:
-      base_name = os.path.basename(file_name)
-      testing_images.append('testing/' + base_name)
-
-    result[label_name] = {
-        'dir': dir_name,
-        'training': training_images,
-        'testing': testing_images,
-        'validation': validation_images,
-    }
-  return result
+  return {
+      'training': training_images,
+      'testing': testing_images,
+      'validation': validation_images,
+  }
 
 
-def get_image_path(image_lists, label_name, index, image_dir, category):
+def get_image_path(image_lists, index, image_dir, category):
   """Returns a path to an image for a label at the given index.
 
   Args:
     image_lists: OrderedDict of training images for each label.
-    label_name: Label string we want to get an image for.
     index: Int offset of the image we want. This will be moduloed by the
     available number of images for the label, so it can be arbitrarily large.
     image_dir: Root folder string of the subfolders containing the training
@@ -228,28 +200,22 @@ def get_image_path(image_lists, label_name, index, image_dir, category):
     File system path string to an image that meets the requested parameters.
 
   """
-  if label_name not in image_lists:
-    tf.logging.fatal('Label does not exist %s.', label_name)
-  label_lists = image_lists[label_name]
-  if category not in label_lists:
+  if category not in image_lists:
     tf.logging.fatal('Category does not exist %s.', category)
-  category_list = label_lists[category]
+  category_list = image_lists[category]
   if not category_list:
-    tf.logging.fatal('Label %s has no images in the category %s.',
-                     label_name, category)
+    tf.logging.fatal('No images in the category %s.', category)
   mod_index = index % len(category_list)
   base_name = category_list[mod_index]
-  sub_dir = label_lists['dir']
-  full_path = os.path.join(image_dir, sub_dir, base_name)
+  full_path = os.path.join(image_dir, category, base_name)
   return full_path
 
 
-def get_image_labels_path(image_lists, label_name, index, image_dir, category):
+def get_image_labels_path(image_lists, index, image_dir, category):
   """Returns a path to an image for a label at the given index.
 
   Args:
     image_lists: OrderedDict of training images for each label.
-    label_name: Label string we want to get an image for.
     index: Int offset of the image we want. This will be moduloed by the
     available number of images for the label, so it can be arbitrarily large.
     image_dir: Root folder string of the subfolders containing the training
@@ -261,29 +227,23 @@ def get_image_labels_path(image_lists, label_name, index, image_dir, category):
     File system path string to an image that meets the requested parameters.
 
   """
-  if label_name not in image_lists:
-    tf.logging.fatal('Label does not exist %s.', label_name)
-  label_lists = image_lists[label_name]
-  if category not in label_lists:
+  if category not in image_lists:
     tf.logging.fatal('Category does not exist %s.', category)
-  category_list = label_lists[category]
+  category_list = image_lists[category]
   if not category_list:
-    tf.logging.fatal('Label %s has no images in the category %s.',
-                     label_name, category)
+    tf.logging.fatal('No images in the category %s.', category)
   mod_index = index % len(category_list)
   base_name = category_list[mod_index]
-  sub_dir = label_lists['dir']
-  full_path = os.path.join(image_dir, sub_dir, 'labels', base_name + ".txt")
+  full_path = os.path.join(image_dir, category, 'labels', base_name)
   return full_path
 
 
-def get_bottleneck_path(image_lists, label_name, index, bottleneck_dir,
+def get_bottleneck_path(image_lists, index, bottleneck_dir,
                         category, module_name):
   """Returns a path to a bottleneck file for a label at the given index.
 
   Args:
     image_lists: OrderedDict of training images for each label.
-    label_name: Label string we want to get an image for.
     index: Integer offset of the image we want. This will be moduloed by the
     available number of images for the label, so it can be arbitrarily large.
     bottleneck_dir: Folder string holding cached files of bottleneck values.
@@ -297,7 +257,7 @@ def get_bottleneck_path(image_lists, label_name, index, bottleneck_dir,
   module_name = (module_name.replace('://', '~')  # URL scheme.
                  .replace('/', '~')  # URL and Unix paths.
                  .replace(':', '~').replace('\\', '~'))  # Windows paths.
-  return get_image_path(image_lists, label_name, index, bottleneck_dir,
+  return get_image_path(image_lists, index, bottleneck_dir,
                         category) + '_' + module_name + '.txt'
 
 
@@ -360,13 +320,13 @@ def ensure_dir_exists(dir_name):
     os.makedirs(dir_name)
 
 
-def create_bottleneck_file(bottleneck_path, image_lists, label_name, index,
+def create_bottleneck_file(bottleneck_path, image_lists, index,
                            image_dir, category, sess, jpeg_data_tensor,
                            decoded_image_tensor, resized_input_tensor,
                            bottleneck_tensor):
   """Create a single bottleneck file."""
   tf.logging.info('Creating bottleneck at ' + bottleneck_path)
-  image_path = get_image_path(image_lists, label_name, index,
+  image_path = get_image_path(image_lists, index,
                               image_dir, category)
   if not tf.gfile.Exists(image_path):
     tf.logging.fatal('File does not exist %s', image_path)
@@ -383,7 +343,7 @@ def create_bottleneck_file(bottleneck_path, image_lists, label_name, index,
     bottleneck_file.write(bottleneck_string)
 
 
-def get_or_create_bottleneck(sess, image_lists, label_name, index, image_dir,
+def get_or_create_bottleneck(sess, image_lists, index, image_dir,
                              category, bottleneck_dir, jpeg_data_tensor,
                              decoded_image_tensor, resized_input_tensor,
                              bottleneck_tensor, module_name):
@@ -395,7 +355,6 @@ def get_or_create_bottleneck(sess, image_lists, label_name, index, image_dir,
   Args:
     sess: The current active TensorFlow Session.
     image_lists: OrderedDict of training images for each label.
-    label_name: Label string we want to get an image for.
     index: Integer offset of the image we want. This will be modulo-ed by the
     available number of images for the label, so it can be arbitrarily large.
     image_dir: Root folder string of the subfolders containing the training
@@ -412,14 +371,10 @@ def get_or_create_bottleneck(sess, image_lists, label_name, index, image_dir,
   Returns:
     Numpy array of values produced by the bottleneck layer for the image.
   """
-  label_lists = image_lists[label_name]
-  sub_dir = label_lists['dir']
-  sub_dir_path = os.path.join(bottleneck_dir, sub_dir)
-  ensure_dir_exists(sub_dir_path)
-  bottleneck_path = get_bottleneck_path(image_lists, label_name, index,
+  bottleneck_path = get_bottleneck_path(image_lists, index,
                                         bottleneck_dir, category, module_name)
   if not os.path.exists(bottleneck_path):
-    create_bottleneck_file(bottleneck_path, image_lists, label_name, index,
+    create_bottleneck_file(bottleneck_path, image_lists, index,
                            image_dir, category, sess, jpeg_data_tensor,
                            decoded_image_tensor, resized_input_tensor,
                            bottleneck_tensor)
@@ -432,7 +387,7 @@ def get_or_create_bottleneck(sess, image_lists, label_name, index, image_dir,
     tf.logging.warning('Invalid float found, recreating bottleneck')
     did_hit_error = True
   if did_hit_error:
-    create_bottleneck_file(bottleneck_path, image_lists, label_name, index,
+    create_bottleneck_file(bottleneck_path, image_lists, index,
                            image_dir, category, sess, jpeg_data_tensor,
                            decoded_image_tensor, resized_input_tensor,
                            bottleneck_tensor)
@@ -473,19 +428,18 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
   """
   how_many_bottlenecks = 0
   ensure_dir_exists(bottleneck_dir)
-  for label_name, label_lists in image_lists.items():
-    for category in ['training', 'testing', 'validation']:
-      category_list = label_lists[category]
-      for index, unused_base_name in enumerate(category_list):
-        get_or_create_bottleneck(
-            sess, image_lists, label_name, index, image_dir, category,
-            bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
-            resized_input_tensor, bottleneck_tensor, module_name)
+  for category in ['training', 'testing', 'validation']:
+    category_list = image_lists[category]
+    for index, unused_base_name in enumerate(category_list):
+      get_or_create_bottleneck(
+          sess, image_lists, index, image_dir, category,
+          bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
+          resized_input_tensor, bottleneck_tensor, module_name)
 
-        how_many_bottlenecks += 1
-        if how_many_bottlenecks % 100 == 0:
-          tf.logging.info(
-              str(how_many_bottlenecks) + ' bottleneck files created.')
+      how_many_bottlenecks += 1
+      if how_many_bottlenecks % 100 == 0:
+        tf.logging.info(
+            str(how_many_bottlenecks) + ' bottleneck files created.')
 
 
 def get_random_cached_bottlenecks(sess, image_lists, image_labels, how_many, category,
@@ -520,49 +474,45 @@ def get_random_cached_bottlenecks(sess, image_lists, image_labels, how_many, cat
   """
   class_count = len(image_labels)
   bottlenecks = []
-  ground_truths = np.zeros(class_count, dtype=np.float32)
+  ground_truths = []
   filenames = []
   if how_many >= 0:
     # Retrieve a random sample of bottlenecks.
     for unused_i in range(how_many):
-      label_index = random.randrange(class_count)
-      label_name = list(image_lists.keys())[label_index]
       image_index = random.randrange(MAX_NUM_IMAGES_PER_CLASS + 1)
-      image_name = get_image_path(image_lists, label_name, image_index,
-                                  image_dir, category)
-      labels_file = get_image_labels_path(image_lists, label_name,
-                                          image_index, image_dir, category)
+      image_name = get_image_path(image_lists, image_index, image_dir, category)
+      labels_file = get_image_labels_path(image_lists, image_index, image_dir, category)
+      ground_truth = np.zeros(class_count, dtype=np.float32)
       with open(labels_file) as f:
         true_labels = f.read().splitlines()
       for idx, label in enumerate(image_labels):
         if label in true_labels:
-          ground_truths[idx] = 1.0
+          ground_truth[idx] = 1.0
+      ground_truths.append(ground_truth)
       bottleneck = get_or_create_bottleneck(
-          sess, image_lists, label_name, image_index, image_dir, category,
+          sess, image_lists, image_index, image_dir, category,
           bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
           resized_input_tensor, bottleneck_tensor, module_name)
       bottlenecks.append(bottleneck)
       filenames.append(image_name)
   else:
     # Retrieve all bottlenecks.
-    for label_index, label_name in enumerate(image_lists.keys()):
-      for image_index, image_name in enumerate(
-          image_lists[label_name][category]):
-        image_name = get_image_path(image_lists, label_name, image_index,
-                                    image_dir, category)
-        labels_file = get_image_labels_path(image_lists, label_name,
-                                            image_index, image_dir, category)
-        with open(labels_file) as f:
-          true_labels = f.read().splitlines()
-        for idx, label in enumerate(image_labels):
-          if label in true_labels:
-            ground_truths[idx] = 1.0
-        bottleneck = get_or_create_bottleneck(
-            sess, image_lists, label_name, image_index, image_dir, category,
-            bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
-            resized_input_tensor, bottleneck_tensor, module_name)
-        bottlenecks.append(bottleneck)
-        filenames.append(image_name)
+    for image_index, image_name in enumerate(image_lists[category]):
+      image_name = get_image_path(image_lists, image_index, image_dir, category)
+      labels_file = get_image_labels_path(image_lists, image_index, image_dir, category)
+      ground_truth = np.zeros(class_count, dtype=np.float32)
+      with open(labels_file) as f:
+        true_labels = f.read().splitlines()
+      for idx, label in enumerate(image_labels):
+        if label in true_labels:
+          ground_truth[idx] = 1.0
+      ground_truths.append(ground_truth)
+      bottleneck = get_or_create_bottleneck(
+          sess, image_lists, image_index, image_dir, category,
+          bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
+          resized_input_tensor, bottleneck_tensor, module_name)
+      bottlenecks.append(bottleneck)
+      filenames.append(image_name)
   return bottlenecks, ground_truths, filenames
 
 
@@ -595,22 +545,21 @@ def get_random_distorted_bottlenecks(
   """
   class_count = len(image_labels)
   bottlenecks = []
-  ground_truths = np.zeros(class_count, dtype=np.float32)
+  ground_truths = []
   for unused_i in range(how_many):
-    label_index = random.randrange(class_count)
-    label_name = list(image_lists.keys())[label_index]
     image_index = random.randrange(MAX_NUM_IMAGES_PER_CLASS + 1)
-    image_path = get_image_path(image_lists, label_name, image_index, image_dir,
-                                category)
+    image_path = get_image_path(image_lists, image_index, image_dir, category)
     if not tf.gfile.Exists(image_path):
       tf.logging.fatal('File does not exist %s', image_path)
-    labels_file = get_image_labels_path(image_lists, label_name,
+    labels_file = get_image_labels_path(image_lists,
                                         image_index, image_dir, category)
+    ground_truth = np.zeros(class_count, dtype=np.float32)
     with open(labels_file) as f:
       true_labels = f.read().splitlines()
     for idx, label in enumerate(image_labels):
       if label in true_labels:
-        ground_truths[idx] = 1.0
+        ground_truth[idx] = 1.0
+    ground_truths.append(ground_truth)
     jpeg_data = tf.gfile.FastGFile(image_path, 'rb').read()
     # Note that we materialize the distorted_image_data as a numpy array before
     # sending running inference on the image. This involves 2 memory copies and
@@ -868,7 +817,7 @@ def run_final_eval(train_session, module_spec, class_count, image_lists, image_l
     resized_image_tensor: The input node of the recognition graph.
     bottleneck_tensor: The bottleneck output layer of the CNN graph.
   """
-  test_bottlenecks, test_ground_truth, test_filenames = (
+  test_bottlenecks, test_ground_truths, test_filenames = (
       get_random_cached_bottlenecks(train_session, image_lists, image_labels,
                                     FLAGS.test_batch_size,
                                     'testing', FLAGS.bottleneck_dir,
@@ -882,15 +831,16 @@ def run_final_eval(train_session, module_spec, class_count, image_lists, image_l
       [evaluation_step, prediction],
       feed_dict={
           bottleneck_input: test_bottlenecks,
-          ground_truth_input: test_ground_truth
+          ground_truth_input: test_ground_truths
       })
   tf.logging.info('Final test accuracy = %.1f%% (N=%d)' %
                   (test_accuracy * 100, len(test_bottlenecks)))
 
   if FLAGS.print_misclassified_test_images:
+    # TODO
     tf.logging.info('=== MISCLASSIFIED TEST IMAGES ===')
     for i, test_filename in enumerate(test_filenames):
-      if predictions[i] != test_ground_truth[i]:
+      if predictions[i] != test_ground_truths[i]:
         tf.logging.info('%70s  %s' % (test_filename,
                                       list(image_lists.keys())[predictions[i]]))
 
@@ -1023,6 +973,10 @@ def main(_):
   if not FLAGS.image_dir:
     tf.logging.error('Must set flag --image_dir.')
     return -1
+  elif not FLAGS.all_labels_file:
+      tf.logging.error('Must set flag --all_labels_file.')
+      return -1
+
 
   # Prepare necessary directories that can be used during training
   prepare_file_system()
@@ -1037,12 +991,7 @@ def main(_):
 
   class_count = len(image_labels)
   if class_count == 0:
-    tf.logging.error('No valid folders of images found at ' + FLAGS.image_dir)
-    return -1
-  if class_count == 1:
-    tf.logging.error('Only one valid folder of images found at ' +
-                     FLAGS.image_dir +
-                     ' - multiple classes are needed for classification.')
+    tf.logging.error('Invalid all labels file.')
     return -1
 
   # See if the command-line flags mean we're applying any distortions.
@@ -1106,13 +1055,13 @@ def main(_):
       # time with distortions applied, or from the cache stored on disk.
       if do_distort_images:
         (train_bottlenecks,
-         train_ground_truth) = get_random_distorted_bottlenecks(
+         train_ground_truths) = get_random_distorted_bottlenecks(
              sess, image_lists, image_labels, FLAGS.train_batch_size, 'training',
              FLAGS.image_dir, distorted_jpeg_data_tensor,
              distorted_image_tensor, resized_image_tensor, bottleneck_tensor)
       else:
         (train_bottlenecks,
-         train_ground_truth, _) = get_random_cached_bottlenecks(
+         train_ground_truths, _) = get_random_cached_bottlenecks(
              sess, image_lists, image_labels, FLAGS.train_batch_size, 'training',
              FLAGS.bottleneck_dir, FLAGS.image_dir, jpeg_data_tensor,
              decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
@@ -1122,7 +1071,7 @@ def main(_):
       train_summary, _ = sess.run(
           [merged, train_step],
           feed_dict={bottleneck_input: train_bottlenecks,
-                     ground_truth_input: train_ground_truth})
+                     ground_truth_input: train_ground_truths})
       train_writer.add_summary(train_summary, i)
 
       # Every so often, print out how well the graph is training.
@@ -1131,7 +1080,7 @@ def main(_):
         train_accuracy, cross_entropy_value = sess.run(
             [evaluation_step, cross_entropy],
             feed_dict={bottleneck_input: train_bottlenecks,
-                       ground_truth_input: train_ground_truth})
+                       ground_truth_input: train_ground_truths})
         tf.logging.info('%s: Step %d: Train accuracy = %.1f%%' %
                         (datetime.now(), i, train_accuracy * 100))
         tf.logging.info('%s: Step %d: Cross entropy = %f' %
@@ -1139,7 +1088,7 @@ def main(_):
         # TODO: Make this use an eval graph, to avoid quantization
         # moving averages being updated by the validation set, though in
         # practice this makes a negligable difference.
-        validation_bottlenecks, validation_ground_truth, _ = (
+        validation_bottlenecks, validation_ground_truths, _ = (
             get_random_cached_bottlenecks(
                 sess, image_lists, image_labels, FLAGS.validation_batch_size, 'validation',
                 FLAGS.bottleneck_dir, FLAGS.image_dir, jpeg_data_tensor,
@@ -1150,7 +1099,7 @@ def main(_):
         validation_summary, validation_accuracy = sess.run(
             [merged, evaluation_step],
             feed_dict={bottleneck_input: validation_bottlenecks,
-                       ground_truth_input: validation_ground_truth})
+                       ground_truth_input: validation_ground_truths})
         validation_writer.add_summary(validation_summary, i)
         tf.logging.info('%s: Step %d: Validation accuracy = %.1f%% (N=%d)' %
                         (datetime.now(), i, validation_accuracy * 100,
@@ -1187,7 +1136,7 @@ def main(_):
       tf.logging.info('The model is instrumented for quantization with TF-Lite')
     save_graph_to_file(graph, FLAGS.output_graph, module_spec, class_count)
     with tf.gfile.FastGFile(FLAGS.output_labels, 'w') as f:
-      f.write('\n'.join(image_lists.keys()) + '\n')
+      f.write('\n'.join(image_labels) + '\n')
 
     if FLAGS.saved_model_dir:
       export_model(module_spec, class_count, FLAGS.saved_model_dir)

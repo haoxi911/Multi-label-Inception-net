@@ -176,6 +176,9 @@ def create_image_lists(image_dir):
     validation_images.extend(tf.gfile.Glob(file_glob))
     file_glob = os.path.join(image_dir, 'testing', '*.' + extension)
     testing_images.extend(tf.gfile.Glob(file_glob))
+  training_images = [os.path.basename(x) for x in training_images]
+  validation_images = [os.path.basename(x) for x in validation_images]
+  testing_images = [os.path.basename(x) for x in testing_images]
 
   return {
       'training': training_images,
@@ -326,6 +329,8 @@ def create_bottleneck_file(bottleneck_path, image_lists, index,
                            bottleneck_tensor):
   """Create a single bottleneck file."""
   tf.logging.info('Creating bottleneck at ' + bottleneck_path)
+  if not os.path.exists(os.path.dirname(bottleneck_path)):
+    os.makedirs(os.path.dirname(bottleneck_path))
   image_path = get_image_path(image_lists, index,
                               image_dir, category)
   if not tf.gfile.Exists(image_path):
@@ -843,7 +848,8 @@ def run_final_eval(train_session, module_spec, class_count, image_lists, image_l
     tf.logging.info('=== MISCLASSIFIED TEST IMAGES ===')
     for i, test_filename in enumerate(test_filenames):
       if (predictions[i] - test_ground_truths[i]).any():
-        tf.logging.info('%70s' % test_filename)
+        tf.logging.info('%70s %d %d' % (test_filename, ((predictions[i] != 0) & (test_ground_truths[i] != 0)).sum(),
+                                        np.count_nonzero(test_ground_truths[i])))
 
 
 def build_eval_session(module_spec, class_count):

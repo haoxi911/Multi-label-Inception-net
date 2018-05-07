@@ -483,11 +483,12 @@ def get_random_cached_bottlenecks(sess, image_lists, image_labels, how_many, cat
       image_name = get_image_path(image_lists, image_index, image_dir, category)
       labels_file = get_image_labels_path(image_lists, image_index, image_dir, category)
       ground_truth = np.zeros(class_count, dtype=np.float32)
-      with open(labels_file) as f:
-        true_labels = f.read().splitlines()
-      for idx, label in enumerate(image_labels):
-        if label in true_labels:
-          ground_truth[idx] = 1.0
+      if os.path.exists(labels_file):
+        with open(labels_file) as f:
+          true_labels = f.read().splitlines()
+        for idx, label in enumerate(image_labels):
+          if label in true_labels:
+            ground_truth[idx] = 1.0
       ground_truths.append(ground_truth)
       bottleneck = get_or_create_bottleneck(
           sess, image_lists, image_index, image_dir, category,
@@ -501,11 +502,12 @@ def get_random_cached_bottlenecks(sess, image_lists, image_labels, how_many, cat
       image_name = get_image_path(image_lists, image_index, image_dir, category)
       labels_file = get_image_labels_path(image_lists, image_index, image_dir, category)
       ground_truth = np.zeros(class_count, dtype=np.float32)
-      with open(labels_file) as f:
-        true_labels = f.read().splitlines()
-      for idx, label in enumerate(image_labels):
-        if label in true_labels:
-          ground_truth[idx] = 1.0
+      if os.path.exists(labels_file):
+        with open(labels_file) as f:
+          true_labels = f.read().splitlines()
+        for idx, label in enumerate(image_labels):
+          if label in true_labels:
+            ground_truth[idx] = 1.0
       ground_truths.append(ground_truth)
       bottleneck = get_or_create_bottleneck(
           sess, image_lists, image_index, image_dir, category,
@@ -554,11 +556,12 @@ def get_random_distorted_bottlenecks(
     labels_file = get_image_labels_path(image_lists,
                                         image_index, image_dir, category)
     ground_truth = np.zeros(class_count, dtype=np.float32)
-    with open(labels_file) as f:
-      true_labels = f.read().splitlines()
-    for idx, label in enumerate(image_labels):
-      if label in true_labels:
-        ground_truth[idx] = 1.0
+    if os.path.exists(labels_file):
+      with open(labels_file) as f:
+        true_labels = f.read().splitlines()
+      for idx, label in enumerate(image_labels):
+        if label in true_labels:
+          ground_truth[idx] = 1.0
     ground_truths.append(ground_truth)
     jpeg_data = tf.gfile.FastGFile(image_path, 'rb').read()
     # Note that we materialize the distorted_image_data as a numpy array before
@@ -730,7 +733,7 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor,
         name='BottleneckInputPlaceholder')
 
     ground_truth_input = tf.placeholder(
-        tf.int64, [batch_size], name='GroundTruthInput')
+        tf.float32, [batch_size, class_count], name='GroundTruthInput')
 
   # Organizing the following ops so they are easier to see in TensorBoard.
   layer_name = 'final_retrain_ops'
@@ -768,8 +771,8 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor,
     return None, None, bottleneck_input, ground_truth_input, final_tensor
 
   with tf.name_scope('cross_entropy'):
-    cross_entropy_mean = tf.losses.sparse_sigmoid_cross_entropy(
-        labels=ground_truth_input, logits=logits)
+    cross_entropy_mean = tf.losses.sigmoid_cross_entropy(
+        ground_truth_input, logits=logits)
 
   tf.summary.scalar('cross_entropy', cross_entropy_mean)
 
@@ -837,12 +840,10 @@ def run_final_eval(train_session, module_spec, class_count, image_lists, image_l
                   (test_accuracy * 100, len(test_bottlenecks)))
 
   if FLAGS.print_misclassified_test_images:
-    # TODO
     tf.logging.info('=== MISCLASSIFIED TEST IMAGES ===')
     for i, test_filename in enumerate(test_filenames):
-      if predictions[i] != test_ground_truths[i]:
-        tf.logging.info('%70s  %s' % (test_filename,
-                                      list(image_lists.keys())[predictions[i]]))
+      if (predictions[i] - test_ground_truths[i]).any():
+        tf.logging.info('%70s' % test_filename)
 
 
 def build_eval_session(module_spec, class_count):
@@ -1125,7 +1126,7 @@ def main(_):
 
     # We've completed all our training, so run a final test evaluation on
     # some new images we haven't used before.
-    run_final_eval(sess, module_spec, class_count, image_lists,
+    run_final_eval(sess, module_spec, class_count, image_lists, image_labels,
                    jpeg_data_tensor, decoded_image_tensor, resized_image_tensor,
                    bottleneck_tensor)
 

@@ -237,7 +237,7 @@ def get_image_labels_path(image_lists, index, image_dir, category):
     tf.logging.fatal('No images in the category %s.', category)
   mod_index = index % len(category_list)
   base_name = category_list[mod_index]
-  full_path = os.path.join(image_dir, category, 'labels', base_name)
+  full_path = os.path.join(image_dir, category, 'labels', base_name + '.txt')
   return full_path
 
 
